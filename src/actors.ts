@@ -151,8 +151,8 @@ export class ProjectActor {
   }
 
   // Get all tasks for the project
-  async getTasks() {
-    const tasks = await this.state.storage.get('tasks');
+  async getTasks(): Promise<z.infer<typeof taskSchema>[]> {
+    const tasks = await this.state.storage.get<z.infer<typeof taskSchema>[]>('tasks');
     return tasks || [];
   }
 
