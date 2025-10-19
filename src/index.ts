@@ -11,7 +11,7 @@ const projectSchema = z.object({
   id: z.string(),
   name: z.string(),
   status: z.enum(['PENDING', 'PLANNING', 'EXECUTING', 'COMPLETED']),
-  config: z.any(),
+  config: z.record(z.string(), z.unknown()),
 });
 
 const taskSchema = z.object({
