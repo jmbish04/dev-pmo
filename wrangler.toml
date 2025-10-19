@@ -2,6 +2,9 @@ name = "helios"
 main = "src/index.ts"
 compatibility_date = "2023-10-30"
 
+[observability]
+enabled = true
+
 [[d1_databases]]
 binding = "dev_pmo"
 database_name = "dev-pmo"
