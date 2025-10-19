@@ -1,5 +1,6 @@
-import { Hono } from 'hono';
+import { Hono, Context } from 'hono';
 import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
 import { handleError } from './utils';
 import {
   projectSchema,
@@ -9,12 +10,9 @@ import {
   knowledgeBaseSchema,
   createKnowledgeBaseSchema,
 } from './schemas';
-
-// Define the environment bindings
-export type Env = {
-  dev_pmo: D1Database;
-  PROJECT_ACTOR: DurableObjectNamespace;
-};
+import { Env } from './types';
+import { ProjectActor } from './actors';
+import { Orchestrator } from './orchestrator';
 
 // Initialize Hono
 const app = new Hono<{ Bindings: Env }>();
@@ -53,10 +51,6 @@ app.get('/api/projects/:id', async (c) => {
   }
 });
 
-import { Orchestrator } from './orchestrator';
-
-// ... (rest of the file)
-
 app.post('/api/projects', zValidator('json', createProjectSchema), async (c) => {
   try {
     const projectData = c.req.valid('json');
@@ -72,9 +66,7 @@ app.post('/api/projects', zValidator('json', createProjectSchema), async (c) => 
     const tasks = await orchestrator.planProject(project);
 
     // Add the tasks to the project actor
-    for (const task of tasks) {
-      await stub.fetch(new Request(`https://.../tasks`, { method: 'POST', body: JSON.stringify(task) }));
-    }
+    await stub.fetch(new Request(`https://.../tasks/batch`, { method: 'POST', body: JSON.stringify({ tasks }) }));
 
     console.log(`Created project with id: ${project.id} and ${tasks.length} tasks`);
     return c.json(project, 201);
@@ -116,123 +108,66 @@ app.delete('/api/projects/:id', async (c) => {
   }
 });
 
-// CRUD for Tasks
-app.get('/api/projects/:projectId/tasks', async (c) => {
-  try {
-    const projectId = c.req.param('projectId');
-    console.log(`Fetching tasks for project with id: ${projectId}`);
-
-    const id = c.env.PROJECT_ACTOR.idFromString(projectId);
-    const stub = c.env.PROJECT_ACTOR.get(id);
-    const response = await stub.fetch(new Request(`https://.../tasks`));
-
-    if (response.ok) {
-      const tasks = await response.json();
-      return c.json(tasks);
+// Task Routes (Project-Scoped)
+const taskRoutes = new Hono()
+  .post('/', async (c: Context<{ Bindings: Env; Variables: { projectId: string } }>) => {
+    const { projectId } = c.req.param();
+    const taskData = await c.req.json();
+    const validation = createTaskSchema.safeParse(taskData);
+    if (!validation.success) {
+      return c.json({ error: 'Invalid task data' }, 400);
     }
-
-    return handleError(c, 'Failed to fetch tasks', 500);
-  } catch (e: any) {
-    return handleError(c, 'Failed to fetch tasks', 500);
-  }
-});
-
-app.get('/api/tasks/:id', async (c) => {
-  try {
-    const id = c.req.param('id');
-    console.log(`Fetching task with id: ${id}`);
-
-    // First, get the project_id from the task
-    const task: any = await c.env.dev_pmo.prepare('SELECT project_id FROM Tasks WHERE id = ?').bind(id).first();
-    if (!task) {
-      return handleError(c, 'Task not found', 404);
+    const actor = c.env.PROJECT_ACTOR.get(c.env.PROJECT_ACTOR.idFromString(projectId));
+    const response = await actor.fetch(new Request('https://.../tasks', { method: 'POST', body: JSON.stringify(validation.data) }));
+    return new Response(response.body, { status: response.status, headers: { 'Content-Type': 'application/json' } });
+  })
+  .post('/batch', async (c: Context<{ Bindings: Env; Variables: { projectId: string } }>) => {
+    const { projectId } = c.req.param();
+    const { tasks } = await c.req.json();
+    const validation = z.array(createTaskSchema).safeParse(tasks);
+    if (!validation.success) {
+      return c.json({ error: 'Invalid task data' }, 400);
     }
-
-    // Then, get the task details from the actor
-    const actorId = c.env.PROJECT_ACTOR.idFromString(task.project_id);
-    const stub = c.env.PROJECT_ACTOR.get(actorId);
-    const response = await stub.fetch(new Request(`https://.../tasks/${id}`));
-
-    if (response.ok) {
-      const taskDetails = await response.json();
-      return c.json(taskDetails);
+    const actor = c.env.PROJECT_ACTOR.get(c.env.PROJECT_ACTOR.idFromString(projectId));
+    const response = await actor.fetch(new Request('https://.../tasks/batch', { method: 'POST', body: JSON.stringify({ tasks: validation.data }) }));
+    return new Response(response.body, { status: response.status, headers: { 'Content-Type': 'application/json' } });
+  })
+  .get('/:taskId', async (c: Context<{ Bindings: Env; Variables: { projectId: string; taskId: string } }>) => {
+    const { projectId, taskId } = c.req.param();
+    const actor = c.env.PROJECT_ACTOR.get(c.env.PROJECT_ACTOR.idFromString(projectId));
+    const response = await actor.fetch(new Request(`https://.../tasks/${taskId}`));
+    return new Response(response.body, { status: response.status, headers: { 'Content-Type': 'application/json' } });
+  })
+  .put('/:taskId', async (c: Context<{ Bindings: Env; Variables: { projectId: string; taskId: string } }>) => {
+    const { projectId, taskId } = c.req.param();
+    const taskData = await c.req.json();
+    const validation = taskSchema.safeParse(taskData);
+    if (!validation.success) {
+      return c.json({ error: 'Invalid task data' }, 400);
     }
-
-    return handleError(c, 'Task not found', 404);
-  } catch (e: any) {
-    return handleError(c, 'Failed to fetch task', 500);
-  }
-});
-
-app.post('/api/tasks', zValidator('json', createTaskSchema), async (c) => {
-  try {
-    const taskData = c.req.valid('json');
-    const task = { ...taskData, id: crypto.randomUUID() };
-    console.log(`Creating task with id: ${task.id}`);
-
-    const id = c.env.PROJECT_ACTOR.idFromString(task.project_id);
-    const stub = c.env.PROJECT_ACTOR.get(id);
-    await stub.fetch(new Request(`https://.../tasks`, { method: 'POST', body: JSON.stringify(task) }));
-
-    console.log(`Created task with id: ${task.id}`);
-    return c.json(task, 201);
-  } catch (e: any) {
-    console.error('Error creating task:', e);
-    return c.json({ error: 'Failed to create task' }, 500);
-  }
-});
-
-app.put('/api/tasks/:id', zValidator('json', taskSchema), async (c) => {
-  try {
-    const id = c.req.param('id');
-    const task = c.req.valid('json');
-    console.log(`Updating task with id: ${id}`);
-
-    // First, get the project_id from the task
-    const taskData: any = await c.env.dev_pmo.prepare('SELECT project_id FROM Tasks WHERE id = ?').bind(id).first();
-    if (!taskData) {
-      return handleError(c, 'Task not found', 404);
-    }
-
-    // Then, update the task in the actor
-    const actorId = c.env.PROJECT_ACTOR.idFromString(taskData.project_id);
-    const stub = c.env.PROJECT_ACTOR.get(actorId);
-    const response = await stub.fetch(new Request(`https://.../tasks/${id}`, { method: 'PUT', body: JSON.stringify(task) }));
-
-    if (response.ok) {
-      const updatedTask = await response.json();
-      return c.json(updatedTask);
-    }
-
-    return handleError(c, 'Failed to update task', 500);
-  } catch (e: any) {
-    console.error('Error updating task:', e);
-    return c.json({ error: 'Failed to update task' }, 500);
-  }
-});
-
-app.delete('/api/tasks/:id', async (c) => {
-  try {
-    const id = c.req.param('id');
-    console.log(`Deleting task with id: ${id}`);
-
-    // First, get the project_id from the task
-    const task: any = await c.env.dev_pmo.prepare('SELECT project_id FROM Tasks WHERE id = ?').bind(id).first();
-    if (!task) {
-      return handleError(c, 'Task not found', 404);
-    }
-
-    // Then, delete the task in the actor
-    const actorId = c.env.PROJECT_ACTOR.idFromString(task.project_id);
-    const stub = c.env.PROJECT_ACTOR.get(actorId);
-    await stub.fetch(new Request(`https://.../tasks/${id}`, { method: 'DELETE' }));
-
+    const actor = c.env.PROJECT_ACTOR.get(c.env.PROJECT_ACTOR.idFromString(projectId));
+    const response = await actor.fetch(new Request(`https://.../tasks/${taskId}`, { method: 'PUT', body: JSON.stringify(validation.data) }));
+    return new Response(response.body, { status: response.status, headers: { 'Content-Type': 'application/json' } });
+  })
+  .delete('/:taskId', async (c: Context<{ Bindings: Env; Variables: { projectId: string; taskId: string } }>) => {
+    const { projectId, taskId } = c.req.param();
+    const actor = c.env.PROJECT_ACTOR.get(c.env.PROJECT_ACTOR.idFromString(projectId));
+    await actor.fetch(new Request(`https://.../tasks/${taskId}`, { method: 'DELETE' }));
     return c.json({ message: 'Task deleted' });
-  } catch (e: any) {
-    console.error('Error deleting task:', e);
-    return c.json({ error: 'Failed to delete task' }, 500);
-  }
-});
+  })
+  .post('/:taskId/status', async (c: Context<{ Bindings: Env; Variables: { projectId: string; taskId: string } }>) => {
+    const { projectId, taskId } = c.req.param();
+    const { status } = await c.req.json();
+    const validation = taskSchema.shape.status.safeParse(status);
+    if (!validation.success) {
+      return c.json({ error: 'Invalid status' }, 400);
+    }
+    const actor = c.env.PROJECT_ACTOR.get(c.env.PROJECT_ACTOR.idFromString(projectId));
+    const response = await actor.fetch(new Request(`https://.../tasks/${taskId}/status`, { method: 'POST', body: JSON.stringify({ status: validation.data }) }));
+    return new Response(response.body, { status: response.status, headers: { 'Content-Type': 'application/json' } });
+  });
+
+app.route('/api/projects/:projectId/tasks', taskRoutes);
 
 // CRUD for KnowledgeBase
 app.get('/api/knowledge', async (c) => {

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { projectSchema, taskSchema } from './schemas';
+import { Env } from './types';
 
 // Define the Orchestrator class
 export class Orchestrator {
@@ -45,8 +46,3 @@ export class Orchestrator {
     return tasks.map(task => taskSchema.parse(task));
   }
 }
-
-// Define the environment bindings for the orchestrator
-export type Env = {
-  dev_pmo: D1Database;
-};
