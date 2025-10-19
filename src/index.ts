@@ -75,7 +75,10 @@ app.put('/api/projects/:id', zValidator('json', projectSchema), async (c) => {
 
 app.delete('/api/projects/:id', async (c) => {
   const id = c.req.param('id');
-  await c.env.dev_pmo.prepare('DELETE FROM Projects WHERE id = ?').bind(id).run();
+  const { meta } = await c.env.dev_pmo.prepare('DELETE FROM Projects WHERE id = ?').bind(id).run();
+  if (meta.changes === 0) {
+    return c.json({ error: 'Project not found' }, 404);
+  }
   return c.json({ message: 'Project deleted' });
 });
 
@@ -139,7 +142,10 @@ app.put('/api/tasks/:id', zValidator('json', taskSchema), async (c) => {
 
 app.delete('/api/tasks/:id', async (c) => {
   const id = c.req.param('id');
-  await c.env.dev_pmo.prepare('DELETE FROM Tasks WHERE id = ?').bind(id).run();
+  const { meta } = await c.env.dev_pmo.prepare('DELETE FROM Tasks WHERE id = ?').bind(id).run();
+  if (meta.changes === 0) {
+    return c.json({ error: 'Task not found' }, 404);
+  }
   return c.json({ message: 'Task deleted' });
 });
 
@@ -182,7 +188,10 @@ app.put('/api/knowledge/:id', zValidator('json', knowledgeBaseSchema), async (c)
 
 app.delete('/api/knowledge/:id', async (c) => {
   const id = c.req.param('id');
-  await c.env.dev_pmo.prepare('DELETE FROM KnowledgeBase WHERE id = ?').bind(id).run();
+  const { meta } = await c.env.dev_pmo.prepare('DELETE FROM KnowledgeBase WHERE id = ?').bind(id).run();
+  if (meta.changes === 0) {
+    return c.json({ error: 'Knowledge base entry not found' }, 404);
+  }
   return c.json({ message: 'Knowledge base entry deleted' });
 });
 
