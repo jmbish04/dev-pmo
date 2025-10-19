@@ -6,10 +6,17 @@
     "deploy": "npx wrangler deploy",
     "start": "npx wrangler dev",
     "migrate:local": "npx wrangler d1 migrations apply dev_pmo --local",
-    "migrate:remote": "npx wrangler d1 migrations apply dev_pmo --remote"
+    "migrate:remote": "npx wrangler d1 migrations apply dev_pmo --remote",
+    "lint": "eslint . --ext .ts",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20230419.0",
+    "@typescript-eslint/eslint-plugin": "^8.46.1",
+    "@typescript-eslint/parser": "^8.46.1",
+    "eslint": "^9.38.0",
+    "prettier": "^3.6.2",
     "typescript": "^5.0.4",
     "wrangler": "^4.43.0"
   },

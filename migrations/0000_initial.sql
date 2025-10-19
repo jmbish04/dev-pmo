@@ -15,12 +15,14 @@ CREATE TABLE Tasks (
     status TEXT NOT NULL CHECK(status IN ('TODO', 'IN_PROGRESS', 'BLOCKED', 'REVIEW', 'DONE')),
     agent TEXT,
     logs TEXT,
-    FOREIGN KEY (project_id) REFERENCES Projects(id)
+    FOREIGN KEY (project_id) REFERENCES Projects(id) ON DELETE CASCADE
 );
 
 CREATE TABLE KnowledgeBase (
     id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
     technology TEXT NOT NULL,
     pattern TEXT NOT NULL,
-    content TEXT NOT NULL
+    content TEXT NOT NULL,
+    FOREIGN KEY (project_id) REFERENCES Projects(id) ON DELETE CASCADE
 );
