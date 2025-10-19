@@ -143,7 +143,7 @@ export class ProjectActor {
 
   // Delete the project
   async deleteProject() {
-    const project: any = await this.getProject();
+    const project = await this.getProject();
     if (project) {
       await this.env.dev_pmo.prepare('DELETE FROM Projects WHERE id = ?').bind(project.id).run();
       await this.state.storage.deleteAll();
