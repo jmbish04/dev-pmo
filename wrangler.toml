@@ -1,0 +1,8 @@
+name = "helios"
+main = "src/index.ts"
+compatibility_date = "2023-10-30"
+
+[[d1_databases]]
+binding = "dev_pmo"
+database_name = "dev-pmo"
+database_id = "600647f9-8709-471a-b497-b6c1f3f4de9c"
