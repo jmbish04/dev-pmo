@@ -1,4 +1,4 @@
-name = "helios"
+name = "dev-pmo"
 main = "src/index.ts"
 compatibility_date = "2023-10-30"
 
