@@ -20,9 +20,7 @@ CREATE TABLE Tasks (
 
 CREATE TABLE KnowledgeBase (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
     technology TEXT NOT NULL,
     pattern TEXT NOT NULL,
-    content TEXT NOT NULL,
-    FOREIGN KEY (project_id) REFERENCES Projects(id) ON DELETE CASCADE
+    content TEXT NOT NULL
 );

@@ -9,3 +9,12 @@ enabled = true
 binding = "dev_pmo"
 database_name = "dev-pmo"
 database_id = "600647f9-8709-471a-b497-b6c1f3f4de9c"
+
+[durable_objects]
+bindings = [
+  { name = "PROJECT_ACTOR", class_name = "ProjectActor" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["ProjectActor"]
